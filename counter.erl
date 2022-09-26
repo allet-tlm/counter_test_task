@@ -4,10 +4,11 @@
 
 -record(state, {counter_incs :: list()}).
 
--export([start/0, stop/1, increment/1, number_of_increments_last_minute/2, value/1]).
+-export([start/0, stop/1, increment/1, number_of_increments_last_minute/2, value/1, remove_old_increments/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
 -define(WINDOW_SIZE,60*1000).
+-define(OLD_VALUES_TIME, 5*60*1000).
 
 %% gen_server callbacks
 
@@ -23,6 +24,10 @@ handle_call({number_of_increments, CurrentTime}, _From, State=#state{counter_inc
 	
 handle_call({increment,Time}, _From, State=#state{counter_incs = [{_,Value}|_] = CounterList}) ->
     NewState = State#state{counter_incs = [{Time,Value + 1} | CounterList]},
+    {reply, ok, NewState};
+	
+handle_call({remove_old_increments, Time}, _From, State=#state{counter_incs = CounterList}) ->
+    NewState = State#state{counter_incs = remove_old_icnrements(CounterList, Time)},
     {reply, ok, NewState};
 	
 handle_call(terminate, _From, State) ->
@@ -63,6 +68,9 @@ number_of_increments_last_minute(_Pid, _) ->
 	
 value(Pid) ->
     gen_server:call(Pid, value).
+	
+remove_old_increments(Pid) ->
+    gen_server:call(Pid, {remove_old_increments, erlang:monotonic_time(millisecond)}).
 
 %% Internal functions
 	
@@ -89,3 +97,10 @@ int_round(X, Accuracy) ->
         false ->
             X div int_pow(10,Accuracy) * int_pow(10, Accuracy)
     end.
+	
+remove_old_icnrements(CounterList, Time) ->
+    FilterFun = fun({IncTime,_}) -> 
+                    IncTime >= Time - ?OLD_VALUES_TIME
+                end,
+	lists:filter(FilterFun, CounterList).
+	

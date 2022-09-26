@@ -1,6 +1,8 @@
 -module(counter_tests).
 -include_lib("eunit/include/eunit.hrl").
 
+-record(state, {counter_incs :: list()}).
+
 counter_test_() ->
     {setup,
      fun start/0,
@@ -11,7 +13,8 @@ counter_test_() ->
           counter_increments_last_minute(SetupData, 1),
           counter_increments_last_minute(SetupData, 2),
           counter_increments_last_minute(SetupData, 3),
-          counter_not_supported_accuracy(SetupData)]
+          counter_not_supported_accuracy(SetupData),
+		  counter_remove_old_increments(SetupData)]
      end}.
 	
 start() ->
@@ -39,4 +42,14 @@ counter_not_supported_accuracy(Pid) ->
     Error = counter:number_of_increments_last_minute(Pid,4),
     Error1 = counter:number_of_increments_last_minute(Pid,-1),
     [?_assertEqual({error,not_supported_accuracy},Error),
-     ?_assertEqual({error,not_supported_accuracy},Error1)].	 
+     ?_assertEqual({error,not_supported_accuracy},Error1)].
+	 
+counter_remove_old_increments(Pid) ->
+    timer:sleep(5*60*1000),	
+    [counter:increment(Pid)|| _ <- lists:seq(1,100)],
+    IncRes = counter:remove_old_increments(Pid),
+    #state{counter_incs = List} = sys:get_state(Pid),
+    NList = erlang:length(List),
+	[?_assertEqual(ok, IncRes),
+     ?_assertEqual(100, NList)].
+	
